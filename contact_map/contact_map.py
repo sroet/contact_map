@@ -9,6 +9,9 @@ import scipy
 import pandas as pd
 import mdtraj as md
 import pickle
+import numpy as np
+import warnings
+import matplotlib.pyplot as plt
 
 # TODO:
 # * switch to something where you can define the haystack -- the trick is to
@@ -442,8 +445,8 @@ class ContactFrequency(ContactObject):
     @property
     def atom_contacts(self):
         """Atoms pairs mapped to fraction of trajectory with that contact"""
-        n_x = len(self.haystack)
-        n_y = len(self.query)
+        n_x = self.topology.n_atoms #len(self.haystack)
+        n_y = self.topology.n_atoms #len(self.query)
         return ContactCount(collections.Counter({
             item[0]: float(item[1])/self.n_frames
             for item in self._atom_contacts_count.items()
@@ -498,3 +501,85 @@ class ContactDifference(ContactObject):
         diff = collections.Counter(self.positive.residue_contacts.counter)
         diff.subtract(self.negative.residue_contacts.counter)
         return ContactCount(diff, self.topology.residue, n_x, n_y)
+
+
+class ContactPlotter(object):
+
+    def __init__(self, figsize=(6, 6), dpi=80, cmap='seismic', xmin=None,
+                 xmax=None, ymin=None, ymax=None, vmin=-1, vmax=1,
+                 marker_size=None, *args, **kwargs):
+        self.figsize = figsize
+        self.init_dpi = dpi
+        self.cmap = cmap
+        self.init_xmin = xmin
+        self.init_xmax = xmax
+        self.init_ymin = ymin
+        self.init_ymax = ymax
+        self.vmin = vmin
+        self.vmax = vmax
+        self.init_marker_size = marker_size
+        self.args = args
+        self.kwargs = kwargs
+
+    def dok2xyz(self, dok_matrix):
+        x = []
+        y = []
+        z = []
+        for item in dok_matrix.items():
+            try:
+                x.append(item[0][0])
+                y.append(item[0][1])
+                z.append(item[1])
+            except IndexError:
+                raise TypeError('Expected a DOK matrix, got a ' +
+                                type(dok_matrix))
+        return x, y, z
+
+    def set_plot_limits(self, x, y, z):
+        xfigsize, yfigsize = self.figsize
+        if self.init_xmin is None:
+            self.xmin = min(x)
+        else:
+            self.xmin = self.init_xmin
+        if self.init_xmax is None:
+            self.xmax = max(x)
+        else:
+            self.xmax = self.init_xmax
+        if self.init_ymin is None:
+            self.ymin = min(y)
+        else:
+            self.ymin = self.init_ymin
+        if self.init_ymax is None:
+            self.ymax = max(y)
+        else:
+            self.ymax = self.init_ymax
+
+        self.dpi = self.init_dpi
+        if ((self.xmax-self.xmin)/self.dpi) > xfigsize:
+            old_dpi = self.dpi
+            self.dpi = int(np.ceil((self.xmax-self.xmin)/xfigsize))
+            warnings.warn('Increased standard dpi from ' + str(old_dpi) +
+                          ' to ' + str(self.dpi) + '.')
+        if ((self.ymax-self.ymin)/self.dpi) > yfigsize:
+            old_dpi = self.dpi
+            self.dpi = int(np.ceil((self.ymax-self.ymin)/yfigsize))
+            warnings.warn('Increased standard dpi from ' + str(old_dpi) +
+                          ' to ' + str(self.dpi) + '.')
+
+        if self.init_marker_size is None:
+            xmarker_size = int(xfigsize*self.dpi/(self.xmax-self.xmin))
+            ymarker_size = int(yfigsize*self.dpi/(self.ymax-self.ymin))
+            self.marker_size = max([1, min([xmarker_size, ymarker_size])])
+        else:
+            self.marker_size = self.init_marker_size
+
+    def plot(self, dok_matrix):
+        x, y, z = self.dok2xyz(dok_matrix)
+        self.set_plot_limits(x, y, z)
+        fig = plt.figure(figsize=self.figsize, dpi=self.dpi)
+        plt.xlim([self.xmin, self.xmax])
+        plt.ylim([self.ymin, self.ymax])
+        plt.scatter(x, y, c=z, cmap=self.cmap, vmin=self.vmin, vmax=self.vmax,
+                    marker=',', s=self.marker_size, lw=0,
+                    *self.args, **self.kwargs)
+        return fig,

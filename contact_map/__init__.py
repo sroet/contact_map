@@ -1,6 +1,6 @@
 from contact_map import (
     ContactMap, ContactFrequency, ContactDifference, NearestAtoms,
-    MinimumDistanceCounter
+    MinimumDistanceCounter, ContactPlotter
 )
 
 # import concurrence
