@@ -526,7 +526,7 @@ class ContactMerge(ContactObject):
             self._atom_contacts_count.update(contact._atom_contacts_count)
             self._residue_contacts_count.update(contact._residue_contacts_count)
         except AttributeError:  # or a ContactMap
-            self.n_frames += 1
+            self._n_frames += 1
             self._atom_contacts_count.update(contact._atom_contacts)
             self._residue_contacts_count.update(contact._residue_contacts)
 
