@@ -498,3 +498,62 @@ class ContactDifference(ContactObject):
         diff = collections.Counter(self.positive.residue_contacts.counter)
         diff.subtract(self.negative.residue_contacts.counter)
         return ContactCount(diff, self.topology.residue, n_x, n_y)
+
+
+class ContactMerge(ContactObject):
+    """
+    Merges 2 (or more) contact maps and renormalize the result,
+    this works for single frames or entire trajectories (or mix the 2
+    """
+    def __init__(self, contact_list):
+        template = contact_list[0]
+        super(ContactMerge, self).__init__(template.topology,
+                                           template.query,
+                                           template.haystack,
+                                           template.cutoff,
+                                           template.n_neighbors_ignored)
+        self._n_frames = 0
+        self._atom_contacts_count = collections.Counter([])
+        self._residue_contacts_count = collections.Counter([])
+        self.extend(contact_list)
+
+    def contact_map(self, *args, **kwargs):
+        raise NotImplementedError
+
+    def append(self, contact):
+        try:  # See if it is a ContactFrequency
+            self._n_frames += contact._n_frames
+            self._atom_contacts_count.update(contact._atom_contacts_count)
+            self._residue_contacts_count.update(contact._residue_contacts_count)
+        except AttributeError:  # or a ContactMap
+            self.n_frames += 1
+            self._atom_contacts_count.update(contact._atom_contacts)
+            self._residue_contacts_count.update(contact._residue_contacts)
+
+    def extend(self, contact_list):
+        for contact in contact_list:
+            self.append(contact)
+
+    @property
+    def n_frames(self):
+        return self._n_frames
+
+    @property
+    def atom_contacts(self):
+        """Atoms pairs mapped to fraction of total frames with that contact"""
+        n_x = self.topology.n_atoms
+        n_y = self.topology.n_atoms
+        return ContactCount(collections.Counter({
+            item[0]: float(item[1])/self.n_frames
+            for item in self._atom_contacts_count.items()
+        }), self.topology.atom, n_x, n_y)
+
+    @property
+    def residue_contacts(self):
+        """Residue pairs mapped to fraction of trajectory with that contact"""
+        n_x = self.topology.n_residues
+        n_y = self.topology.n_residues
+        return ContactCount(collections.Counter({
+            item[0]: float(item[1])/self.n_frames
+            for item in self._residue_contacts_count.items()
+        }), self.topology.residue, n_x, n_y)
